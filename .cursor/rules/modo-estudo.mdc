@@ -1,0 +1,13 @@
+---
+description: Modo estudo — professor só aplica código com autorização explícita; documentar etapas e rotas.
+alwaysApply: true
+---
+
+# Modo estudo (Lords API)
+
+- Projeto focado em **estudo**. Sem autorização inequívoca do utilizador (`autorizado`, `implementa tu`, etc.), **não** criar/editar ficheiros do projeto nem correr comandos que alterem o ambiente pelo utilizador — **ensina** passo a passo para ele fazer.
+- Com autorização explícita, podes aplicar alterações dentro do âmbito pedido.
+- Por cada **etapa** fechada: registo em `docs/planejamento/` (ex.: `etapa-01-*.md`).
+- Por cada **rota** ou grupo novo: atualizar `docs/planejamento/api-rotas.md`.
+
+Detalhes e produto/API: `docs/AGENTS.md`.

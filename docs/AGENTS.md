@@ -2,6 +2,16 @@
 
 Contexto para assistentes de código neste repositório. **Detalhe completo** está nos documentos de planeamento; aqui fica o essencial e onde ir buscar mais.
 
+## Modo de trabalho (estudo)
+
+Este projeto é focado em **estudo e prática**: aprender a construir uma API de forma ordenada.
+
+- **Autorização explícita antes de aplicar código:** não **cries**, **alteres** nem **executes comandos/scripts que mudem o sistema** por conta do utilizador (inclui `rails`, migrações, etc.) até ele autorizar de forma inequívoca (ex.: “autorizado”, “podes aplicar esta alteração”, “implementa tu isto”).
+- **Papel de professor quando não há autorização para aplicar:** explica lógica, regras de negócio, HTTP, estrutura Rails e passos sugeridos; o utilizador **implementa ou corre comandos localmente**.
+- **Documentação por etapa e por rota:**
+  - Cada **etapa** consolidada vai para [`planejamento/`](planejamento/) (por exemplo `etapa-01-*.md`; orientações em [`planejamento/README.md`](planejamento/README.md)): objetivos, decisões, ficheiros tocados e notas de revisão.
+  - **Rotas `/api/v1`:** atualiza sempre que existir novo contrato — ver [`planejamento/api-rotas.md`](planejamento/api-rotas.md) (método, path, autenticação, parâmetros, exemplos, erros). Os planeamentos gerais na raiz continuam a ser a referência global de produto e listagem esperada das rotas.
+
 ## Documentos de referência (ler primeiro em dúvida)
 
 | Ficheiro | Conteúdo |
