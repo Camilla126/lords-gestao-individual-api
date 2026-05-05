@@ -1,0 +1,9 @@
+# API MVP: no Solid Cable / extra DB. Async adapter is enough if Action Cable is unused.
+development:
+  adapter: async
+
+test:
+  adapter: test
+
+production:
+  adapter: async
