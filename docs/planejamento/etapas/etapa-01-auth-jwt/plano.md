@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Ter **cadastro** e **login** em JSON com **JWT**, mais **`GET/PATCH /api/v1/me`** com `Authorization: Bearer`. A “tela” Vue fica para depois; testas com **Insomnia** (ou Postman). Segue a ordem **à letra**; em cada passo grava o ficheiro e só avança quando não houver erro.
+Ter **cadastro** e **login** em JSON com **JWT**, mais `**GET/PATCH /api/v1/me`** com `Authorization: Bearer`. A “tela” Vue fica para depois; testas com **Insomnia** (ou Postman). Segue a ordem **à letra**; em cada passo grava o ficheiro e só avança quando não houver erro.
 
 **Pré-requisito:** PostgreSQL a correr e `bin/rails db:create` já feito neste projecto (se `db:migrate` falhar por BD inexistente, corre `bin/rails db:create` antes).
 
@@ -10,7 +10,7 @@ Ter **cadastro** e **login** em JSON com **JWT**, mais **`GET/PATCH /api/v1/me`*
 
 ## Passo 1 — Gemas
 
-Abre o [`Gemfile`](../../../../Gemfile) na raiz do projecto.
+Abre o `[Gemfile](../../../../Gemfile)` na raiz do projecto.
 
 1. **Descomenta** a linha do `bcrypt` (fica como `gem "bcrypt", "~> 3.1.7"` ou similar).
 2. **Adiciona** (por exemplo a seguir ao `bcrypt`):
@@ -19,7 +19,7 @@ Abre o [`Gemfile`](../../../../Gemfile) na raiz do projecto.
 gem "jwt", "~> 2.8"
 ```
 
-3. No terminal, na pasta do projecto:
+1. No terminal, na pasta do projecto:
 
 ```bash
 bundle install
@@ -88,7 +88,7 @@ Confirma em `db/schema.rb` que a tabela `users` aparece.
 
 ## Passo 4 — Model `User`
 
-Cria o ficheiro **`app/models/user.rb`** com:
+Cria o ficheiro `**app/models/user.rb**` com:
 
 ```ruby
 class User < ApplicationRecord
@@ -121,7 +121,7 @@ end
 
 ## Passo 5 — Serviço `JsonWebToken`
 
-Garante que existe a pasta **`app/services`**. Cria **`app/services/json_web_token.rb`**:
+Garante que existe a pasta `**app/services**`. Cria `**app/services/json_web_token.rb**`:
 
 ```ruby
 class JsonWebToken
@@ -157,7 +157,7 @@ end
 
 ## Passo 6 — Concern `Authenticable`
 
-Cria **`app/controllers/concerns/authenticable.rb`**:
+Cria `**app/controllers/concerns/authenticable.rb**`:
 
 ```ruby
 module Authenticable
@@ -188,7 +188,7 @@ end
 
 ## Passo 7 — `Api::V1::BaseController`
 
-Cria as pastas **`app/controllers/api/v1`**. Cria **`app/controllers/api/v1/base_controller.rb`**:
+Cria as pastas `**app/controllers/api/v1**`. Cria `**app/controllers/api/v1/base_controller.rb**`:
 
 ```ruby
 module Api
@@ -200,13 +200,13 @@ module Api
 end
 ```
 
-O [`ApplicationController`](../../../../app/controllers/application_controller.rb) já pode ficar só com `class ApplicationController < ActionController::API` — não precisas do concern aqui.
+O `[ApplicationController](../../../../app/controllers/application_controller.rb)` já pode ficar só com `class ApplicationController < ActionController::API` — não precisas do concern aqui.
 
 ---
 
 ## Passo 8 — Controllers de registo e sessão
 
-**`app/controllers/api/v1/registrations_controller.rb`**
+`**app/controllers/api/v1/registrations_controller.rb**`
 
 ```ruby
 module Api
@@ -235,7 +235,7 @@ module Api
 end
 ```
 
-**`app/controllers/api/v1/sessions_controller.rb`**
+`**app/controllers/api/v1/sessions_controller.rb**`
 
 ```ruby
 module Api
@@ -264,7 +264,7 @@ module Api
 end
 ```
 
-**`app/controllers/api/v1/me_controller.rb`**
+`**app/controllers/api/v1/me_controller.rb**`
 
 ```ruby
 module Api
@@ -302,7 +302,7 @@ end
 
 ## Passo 9 — Rotas
 
-Abre [`config/routes.rb`](../../../../config/routes.rb) e deixa assim (podes manter o comentário do `up` se quiseres):
+Abre `[config/routes.rb](../../../../config/routes.rb)` e deixa assim (podes manter o comentário do `up` se quiseres):
 
 ```ruby
 Rails.application.routes.draw do
@@ -413,11 +413,12 @@ Deves ver a tua linha com `email` correcto e `password_digest` preenchido (é o 
 
 ## Checklist final
 
-- [ ] Passos 1–9 feitos sem erros de consola.
-- [ ] Insomnia: signup → login → GET `/me` OK.
-- [ ] BD: linha em `users` visível (Passo 12).
-- [ ] Documentaste as rotas em [`../../api-rotas.md`](../../api-rotas.md) (copia o contrato + exemplos que usaste).
+- Passos 1–9 feitos sem erros de consola.
+- Insomnia: signup → login → GET `/me` OK.
+- BD: linha em `users` visível (Passo 12).
+- Documentaste as rotas em `[../../api-rotas.md](../../api-rotas.md)` (copia o contrato + exemplos que usaste).
 
 ## Referências
 
-- Visão técnica global: [`../../../../lords-mobile-tracker-api-planejamento.md`](../../../../lords-mobile-tracker-api-planejamento.md).
+- Visão técnica global: `[../../../../lords-mobile-tracker-api-planejamento.md](../../../../lords-mobile-tracker-api-planejamento.md)`.
+
