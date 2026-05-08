@@ -9,7 +9,7 @@ Este projeto é focado em **estudo e prática**: aprender a construir uma API de
 - **Autorização explícita antes de aplicar código:** não **cries**, **alteres** nem **executes comandos/scripts que mudem o sistema** por conta do utilizador (inclui `rails`, migrações, etc.) até ele autorizar de forma inequívoca (ex.: “autorizado”, “podes aplicar esta alteração”, “implementa tu isto”).
 - **Papel de professor quando não há autorização para aplicar:** explica lógica, regras de negócio, HTTP, estrutura Rails e passos sugeridos; o utilizador **implementa ou corre comandos localmente**.
 - **Documentação por etapa e por rota:**
-  - Cada **etapa** vai para **`docs/planejamento/etapas/etapa-NN-<slug>/plano.md`** (orientações em [`planejamento/etapas/README.md`](planejamento/etapas/README.md)): esse ficheiro é onde preferencialmente mora o **passo-a-passo executável** (comandos, snippets) — **versionado no repo**, não apenas em `.cursor/plans`. Podes mantê-lo enxuto (checklist + macro) ou longo quando for plano pedagógico (`etapa-01` como referência).
+  - Cada **etapa** vai para **`docs/planejamento/etapas/etapa-NN-<slug>/plano.md`** (orientações em [`planejamento/etapas/README.md`](planejamento/etapas/README.md)): esse ficheiro é onde preferencialmente mora o **passo-a-passo executável** (comandos, snippets), com **porquê / objectivo / encadeamento** entre passos **e** explicadores **linha-a-linha** onde houver código — **versionado no repo**, não apenas em `.cursor/plans`. Podes mantê-lo enxuto (checklist + macro) ou longo quando for plano pedagógico (`etapa-01` como referência).
   - **Rotas `/api/v1`:** atualiza sempre que existir novo contrato — ver [`planejamento/api-rotas.md`](planejamento/api-rotas.md) (método, path, autenticação, parâmetros, exemplos, erros). Os planeamentos gerais na raiz continuam a ser a referência global de produto e listagem esperada das rotas.
 
 ## Documentos de referência (ler primeiro em dúvida)
@@ -24,6 +24,7 @@ Este projeto é focado em **estudo e prática**: aprender a construir uma API de
 - **Back (este repo):** Ruby on Rails em modo **API** + **PostgreSQL**; respostas **JSON**; front **Vue** é separado e vem depois.
 - **Auth (MVP):** JWT (`Authorization: Bearer`), `has_secure_password` / bcrypt; **CORS** para o SPA em dev.
 - **Versão da API:** prefixo **`/api/v1/`**.
+- **Comandos Rails (CLI):** preferir **`rails …`** / **`rails c`** nos exemplos; equivalente **`bin/rails`** / **`bundle exec rails`** quando precisares (ver [`planejamento/etapas/README.md`](planejamento/etapas/README.md#convenção-comandos-rails-cli)).
 
 ## Regras de negócio (não contrariar sem alinhamento)
 

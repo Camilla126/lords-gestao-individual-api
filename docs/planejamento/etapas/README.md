@@ -17,8 +17,14 @@ Opcional mais tarde, na mesma pasta, só se precisares: um único extra (ex.: `n
 
 Exemplo existente: [`etapa-01-auth-jwt/plano.md`](etapa-01-auth-jwt/plano.md) (autenticação JWT).
 
+## Convenção: comandos Rails (CLI)
+
+- **Rails console:** preferência **`rails c`** (equivalentes possíveis: `rails console`, `bundle exec rails c`, ou `bin/rails c` quando precisares do stub em **`bin/`**).
+- **Outros comandos** (`db:migrate`, `credentials:edit`, `server`, …): no [`etapa-01-auth-jwt/plano.md`](etapa-01-auth-jwt/plano.md) os exemplos usam **`rails …`**; é equivalente a **`bin/rails …`** ou **`bundle exec rails …`** na pasta do projecto se o teu `rails` global não for o do Bundler.
+
 ## Ao começar uma etapa
 
 1. Copia [`template-plano.md`](template-plano.md) para `etapa-NN-<slug>/plano.md` — ou expands já com **passos numerados completos** (como [`etapa-01-auth-jwt/plano.md`](etapa-01-auth-jwt/plano.md)), se essa etapa for longa/pedagógica.
 2. Preenche até ao “feito”: podes usar checklist **curta** + secção grande “passo a passo” no mesmo `plano.md` quando fizer sentido; o importante é estar **no git**, não só num plano externo ao repo.
-3. No fim da etapa, marca checklist e atualiza [`../api-rotas.md`](../api-rotas.md) se houver novas rotas.
+3. Em cada passo com código: secção [**Porquê e encadeamento**](template-plano.md#porquê-e-encadeamento-recomendação-forte) (objectivo, ordem, ligação ao passo seguinte) **e** depois [**linha-a-linha**](template-plano.md#quando-há-código-ou-sql-nos-passos-recomendação-forte), como em [`etapa-01-auth-jwt/plano.md`](etapa-01-auth-jwt/plano.md).
+4. No fim da etapa, marca checklist e atualiza [`../api-rotas.md`](../api-rotas.md) se houver novas rotas.
