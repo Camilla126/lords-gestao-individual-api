@@ -29,15 +29,25 @@ Uma frase.
 - **Porque agora nesta ordem:** porque depende do passo anterior ou prepara o seguinte (ex.: “só depois da tabela `users` faz sentido o modelo `User`” / “o serviço JWT vem depois do segredo no Passo 2”).
 - **O que vem a seguir:** uma frase que **liga** ao próximo passo (“no Passo seguinte vais…”).
 
-Isto evita listas só de sintaxe sem narrativa. Junta-se às explicações linha-a-linha abaixo.
+Isto evita listas só de sintaxe sem narrativa. Junta-se à secção de explicação do código abaixo.
 
 ## Quando há código ou SQL nos passos (recomendação forte)
 
-Logo **após** cada bloco de código (Gemfile, migration, modelo, controller, routes, payloads HTTP em JSON (Insomnia etc.), consultas SQL executáveis também no DBeaver/psql, etc.), acrescentar uma secção **“Linha-a-linha (Passo N)”** ou equivalente:
+Logo **após** cada bloco de código (Gemfile, migration, modelo, controller, routes, payloads HTTP em JSON (Insomnia etc.), consultas SQL executáveis também no DBeaver/psql, etc.), acrescentar uma secção com título claro, por exemplo **“Entender o ficheiro (Passo N)”** ou **“O que este código faz (Passo N)”** — **não** obrigar o formato antigo de uma bullet por linha com três etiquetas curtas.
 
-- cada **linha** relevante ou cada **agrupamento curto** (ex.: método inteiro quando for curto), usando **sempre** o mesmo formato em três partes: **O que faz** / **Por que existe** / **Quando roda** — por entrada (sem misturar exemplo nem “erro comum” nessa bullet);
-- para comandos de shell (`bundle`, `rails`, `rails credentials:edit`): nas mesmas três partes, cobrir também **flags**, **efeitos persistentes no repo**, e variáveis de ambiente relacionadas quando aplicável.
+**Objectivo do texto:** ler como uma explicação de professor ou de chat: alguém que já viu o snippet e quer **perceber o ficheiro inteiro**, não decorar etiquetas.
 
-Motivo: o projecto favorece **estudo** — o próprio texto do `plano.md` deve servir como apoio quando estás a ler o código no IDE. Referência vivo: [`etapa-01-auth-jwt/plano.md`](etapa-01-auth-jwt/plano.md).
+**Estrutura sugerida (flexível):**
+
+1. **Papel deste ficheiro no fluxo** — 1–2 parágrafos: que problema resolve; como encaixa no passo anterior e no seguinte; se for controller, de onde vem o pedido HTTP e o que devolve (em linguagem humana).
+2. **Como o código está organizado** — prosa: módulos/classes primeiro; depois validações; depois métodos públicos vs `private`; ou a ordem que fizer sentido para **ler o ficheiro de cima a baixo**.
+3. **Detalhe por blocos** — agrupa linhas que trabalham juntas (ex.: “o bloco `before_validation`…”, “o método `create` faz três coisas: …”). Só desce ao nível **linha a linha** quando uma linha isolada costuma confundir (ex.: `&.`, `||=`, `params.require`).
+4. **Comandos shell** — um ou dois parágrafos: o que o comando faz de uma vez; flags; o que fica gravado no repo ou na BD; env vars se forem relevantes.
+
+**Evitar:** listas longas onde cada bullet é só “**O que faz** / **Por que** / **Quando**” em três frases — isso cansa e parece manual de referência em vez de explicação.
+
+**Permitido:** listas curtas para **passos de um fluxo** (1 → 2 → 3), ou para **pré-requisitos**, quando a lista for mais clara que parágrafos.
+
+Motivo: o projecto favorece **estudo** — o `plano.md` deve dar a mesma clareza que uma boa resposta no chat, com o código ao lado. Referência de etapa longa: [`etapa-01-auth-jwt/plano.md`](etapa-01-auth-jwt/plano.md).
 
 Se num passo sugerires abrir o **Rails console**, documenta **`rails c`**; demais comandos podem seguir **`rails …`** com nota de equivalência `bin/rails` (ver [`README.md`](README.md#convenção-comandos-rails-cli)).

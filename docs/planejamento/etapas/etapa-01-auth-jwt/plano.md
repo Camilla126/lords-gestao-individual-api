@@ -6,7 +6,7 @@ Ter **cadastro** e **login** em JSON com **JWT**, mais **GET/PATCH** em `/api/v1
 
 **Pré-requisito:** PostgreSQL a correr e `**rails db:create`** já feito neste projecto (se `**rails db:migrate**` falhar por BD inexistente, corre `**rails db:create**` antes). Se algo não encontrar `rails`, usa `**bundle exec rails …**` ou `**bin/rails …**` (mesmo comandos na pasta do projecto).
 
-**Como ler este plano:** antes de cada trecho há **Porquê este passo** (objectivo, ordem no fluxo, ligação ao que se segue). Depois vêm comandos ou código para copiar. Em **Linha-a-linha**, cada entrada segue sempre o mesmo formato: **O que faz** / **Por que existe** / **Quando roda** — sem exemplo nem “erros comuns”.
+**Como ler este plano:** antes de cada trecho há **Porquê este passo** (objectivo, ordem no fluxo, ligação ao que se segue). Depois vêm comandos ou código para copiar. Em seguida, **Entender o ficheiro / o código (Passo N)** — prosa com **o que cada parte faz** (Gemfile, `params`, JWT, SQL, etc.), para além do “para quê” no geral.
 
 **CLI Rails nos passos:** comandos `**rails …`** (`rails credentials:edit`, `rails db:migrate`, etc.), alinhados com `**rails c**` para o console. Equivalente no projecto: `**bin/rails …**` ou `**bundle exec rails …**` se o teu `rails` não for o do Bundler.
 
@@ -33,11 +33,15 @@ bundle install
 
 *(Opcional para mais tarde, com Vue noutro porto: descomenta `rack-cors` e configura `config/initializers/cors.rb` pelo guia Rails. Podes saltar por agora se só testas com Insomnia no mesmo host.)*
 
-**Linha-a-linha (Passo 1)**
+**Entender o ficheiro (Passo 1)**
 
-- `**gem "bcrypt", …*`* (Gemfile) — **O que faz:** declara a dependência bcrypt. **Por que existe:** `has_secure_password` precisa bcrypt para criar/comparar o hash na coluna `**password_digest`**. **Quando roda:** na instalação de gemas (após gravar o Gemfile).
-- `**gem "jwt", "~> 2.8"`** — **O que faz:** pede ao Bundler a gema JWT na faixa compatível (~> 2.8). **Por que existe:** assinar e verificar tokens no Passo 5. **Quando roda:** `bundle install` após editar o Gemfile.
-- `**bundle install`** — **O que faz:** instala todas as gemas listadas segundo `Gemfile`/`Gemfile.lock`. **Por que existe:** garantir bcrypt e JWT na máquina antes de corrermos código dependente. **Quando roda:** no terminal quando o inicias após mudar gemas.
+**O que é o Gemfile** — É a lista de dependências Ruby do projecto. O Bundler lê este ficheiro e resolve versões compatíveis entre si; o resultado “congelado” costuma ir para **`Gemfile.lock`** (para toda a gente instalar as **mesmas** versões).
+
+**`gem "bcrypt", …` (descomentado)** — A gema **bcrypt** implementa o algoritmo de hash que o Rails usa por baixo de **`has_secure_password`**. Quando gravas um `User` com `password`, o ActiveRecord **não** grava essa string na coluna `password`: calcula um digest e grava em **`password_digest`**. No login, **`authenticate`** compara a password que vêm no pedido com esse digest. Sem bcrypt no Gemfile, `has_secure_password` não funciona.
+
+**`gem "jwt", "~> 2.8"`** — A gema **jwt** é a biblioteca que assina e verifica tokens no formato JWT. O **`~> 2.8`** significa: “versão **2.8** ou superior na série **2.x**, mas **não** salta para **3.0** sozinho” — evita surpresas de breaking changes de major. No Passo 5 vais chamar `JWT.encode` / `JWT.decode` desta gema.
+
+**`bundle install`** — Instala ou actualiza gemas na tua máquina conforme `Gemfile`/`Gemfile.lock`. Corres na **raiz do projecto** (onde está o Gemfile). Se mudares o Gemfile outra vez, repetis o comando para o ambiente ficar alinhado.
 
 ---
 
@@ -61,12 +65,17 @@ jwt_secret: coloca_aqui_uma_string_longa_e_secreta
 
 Grava e fecha. Alternativa em dev: variável de ambiente `JWT_SECRET` (o código abaixo aceita **credentials ou ENV**).
 
-**Linha-a-linha (Passo 2)**
+**Entender o fluxo (Passo 2)**
 
-- `**EDITOR="nano"`** (antes de `rails credentials:edit`) — **O que faz:** indica qual editor abrir para o YAML temporário. **Por que existe:** evitar abrir um editor por defeito que não domines. **Quando roda:** só nessa invocação do comando no terminal.
-- `**rails credentials:edit`** — **O que faz:** desencripta `config/credentials.yml.enc`, abre o YAML e, ao gravar, regrava o `.enc` encriptado (com `master.key` / `RAILS_MASTER_KEY`). **Por que existe:** segredos versionados encriptados em vez de texto claro no repo. **Quando roda:** quando executas o comando no terminal; equivalente `**bin/rails`** / `**bundle exec rails**`.
-- `**jwt_secret:**` (no YAML) — **O que faz:** define a chave lida em Ruby como `Rails.application.credentials[:jwt_secret]`. **Por que existe:** o `JsonWebToken` (Passo 5) precisa do mesmo segredo para assinar e validar. **Quando roda:** cada vez que o processo Rails resolve `secret` com credentials carregadas após teres gravado o valor.
-- `**JWT_SECRET`** (alternativa em dev) — **O que faz:** variável de ambiente usada quando `:jwt_secret` nas credentials está em branco (`.presence`). **Por que existe:** dev/CI sem editar credentials em cada máquina. **Quando roda:** quando o processo Rails arranca com esta env definida e o código chama `secret`.
+**Porque precisas de um segredo** — O JWT é um texto que o cliente guarda e reenvia; qualquer um o **lê** (payload em base64). O que impede alguém de **forjar** um token a dizer “sou o user 999” é a **assinatura HMAC**: só quem conhece o segredo pode gerar uma assinatura válida. O servidor usa o **mesmo** segredo no `encode` (signup/login) e no `decode` (cada `/me`).
+
+**`EDITOR="nano"` (ou VS Code)** — O Rails desencripta as credentials para um ficheiro temporário e chama o programa indicado em **`EDITOR`** para o editares. **`nano`** é um editor de terminal simples; **`code --wait`** abre o VS Code e espera fechares o separador. Isto **não** fica no repositório: é só variável de ambiente **nessa** linha de comando.
+
+**`rails credentials:edit`** — Abre o YAML das credentials, e ao gravar reencripta **`config/credentials.yml.enc`**. A chave para desencriptar está em **`config/master.key`** (local, não commitada por defeito) ou na variável **`RAILS_MASTER_KEY`**. Assim podes versionar **estrutura** de segredos encriptada sem pôr a chave em texto claro no Git.
+
+**Chave `jwt_secret:` no YAML** — O Rails expõe isto como **`Rails.application.credentials[:jwt_secret]`** (símbolo `:jwt_secret` em Ruby). O valor deve ser uma string **longa e aleatória** (não uma palavra do dicionário). O serviço `JsonWebToken` do Passo 5 lê este valor através do método `secret`.
+
+**`JWT_SECRET` na env** — Se em CI ou noutro PC não quiseres editar credentials, defines **`JWT_SECRET`** no ambiente antes de `rails server`. O código do Passo 5 usa **`.presence`** nas credentials: string vazia ou só espaços conta como “não definido” e aí tenta a env — duas entradas, um só sítio de leitura no código.
 
 ---
 
@@ -107,19 +116,29 @@ rails db:migrate
 
 Confirma em `db/schema.rb` que a tabela `users` aparece.
 
-**Linha-a-linha (Passo 3)**
+**Entender o ficheiro (Passo 3)**
 
-- `**rails generate migration CreateUsers …`** — **O que faz:** cria ficheiro em `db/migrate/` com esqueleto de migração. **Por que existe:** poupas escrever só a estrutura inicial; o `change` do plano afinas à mão. **Quando roda:** uma vez no terminal antes de editares o ficheiro.
-- `**class CreateUsers < ActiveRecord::Migration[8.1]`** — **O que faz:** declara a migração ligada à versão da API Rails. **Por que existe:** o Runner precisa duma classe nomeada. **Quando roda:** em `migrate`/`rollback`; usa o número que o gerador tiver posto (mantém-no).
-- `**def change`** — **O que faz:** descreve alterações ao schema num único bloco. **Por que existe:** convenção reversível em muitos casos. **Quando roda:** ao executares `rails db:migrate`.
-- `**create_table :users do |t|`** — **O que faz:** cria a tabela física `users`. **Por que existe:** armazenamento de contas na BD. **Quando roda:** durante esta migração.
-- `**t.string :email, null: false`** — **O que faz:** coluna texto com **NOT NULL**. **Por que existe:** email obrigatório ao nível SQL. **Quando roda:** quando a migração corre; em INSERT/UPDATE seguintes.
-- `**t.string :password_digest, null: false`** — **O que faz:** coluna obrigatória para o hash bcrypt. **Por que existe:** convenção de `has_secure_password`. **Quando roda:** migração + preenchimento ao gravar password.
-- `**t.string :timezone, null: false`** — **O que faz:** guarda o identificador de fuso (IANA). **Por que existe:** semana/dia civil corretos nos relatórios. **Quando roda:** migração + obrigação em cada registo completo.
-- `**t.string :display_name`** — **O que faz:** nome opcional sem `NOT NULL`. **Por que existe:** perfil sem obrigar apelido na BD. **Quando roda:** migração + saves como `NULL` se vazio.
-- `**t.timestamps`** — **O que faz:** cria `created_at` e `updated_at`. **Por que existe:** auditoria temporal padrão Rails. **Quando roda:** preenchidos pelo ActiveRecord em operações de save.
-- `**add_index :users, :email, unique: true`** — **O que faz:** índice único sobre `email`. **Por que existe:** busca rápida por email e reforço anti-duplicados na BD. **Quando roda:** na migração; uso contínuo pelo PostgreSQL em consultas/chaves.
-- `**rails db:migrate`** — **O que faz:** aplica migrações pendentes e actualiza `db/schema.rb`. **Por que existe:** alinhar BD com o código versionado. **Quando roda:** no terminal após teres ficheiros novos em `db/migrate`.
+**`rails generate migration CreateUsers …`** — Cria um ficheiro em `db/migrate/` com data no nome. Os tipos que passas na linha de comando (`email:string:uniq`, etc.) são **sugestão** do gerador; neste plano **substituís** o `change` pelo bloco final — o importante é o schema que fica no ficheiro editado, não o esqueleto inicial.
+
+**`class CreateUsers < ActiveRecord::Migration[8.x]`** — Declara a migração. O número **`[8.1]`** (ou o que o gerador tiver posto) é a versão da API de migrações do Rails: mantém sempre o que veio do gerador para não haver avisos ou incompatibilidades.
+
+**`def change`** — Descreve alterações ao schema. O Rails tenta, em muitos casos, **reverter** automaticamente esta migração se correres `db:rollback` — por isso convém não meter SQL arbitrário que o Rails não saiba inverter.
+
+**`create_table :users`** — Cria a tabela **`users`** no PostgreSQL. Cada **linha** da tabela será um utilizador.
+
+**`t.string :email, null: false`** — Coluna texto; **`null: false`** = NOT NULL na BD. Mesmo que o Ruby falhe, a BD não aceita `INSERT` sem email.
+
+**`t.string :password_digest, null: false`** — Onde fica o **hash** bcrypt. O nome **`password_digest`** é a convenção de `has_secure_password`; tem de existir e ser obrigatório.
+
+**`t.string :timezone, null: false`** — Fuso horário IANA (ex. `Europe/Lisbon`) para relatórios; obrigatório neste MVP.
+
+**`t.string :display_name`** — Sem `null: false`: pode ficar **NULL** na BD se o cliente não enviar nome.
+
+**`t.timestamps`** — Cria **`created_at`** e **`updated_at`** (tipo `datetime`). O ActiveRecord preenche-os em `create`/`update`.
+
+**`add_index :users, :email, unique: true`** — Cria um **índice** na coluna `email`. **`unique: true`** impede dois registos com o mesmo email ao nível SQL (reforço além da validação no model). Também acelera **`find_by(email: ...)`** no login.
+
+**`rails db:migrate`** — Aplica migrações pendentes e actualiza **`db/schema.rb`**, que é o “retrato” do schema que o Rails conhece. Só depois disto o model `User` pode assumir que essas colunas existem.
 
 ---
 
@@ -156,20 +175,29 @@ class User < ApplicationRecord
 end
 ```
 
-**Linha-a-linha (Passo 4)**
+**Entender o ficheiro (Passo 4)**
 
-- `**class User < ApplicationRecord`** — **O que faz:** declarar modelo ActiveRecord ligado por convenção à tabela `**users`**. **Por que existe:** ponte entre Ruby e dados persistidos; herdas persistência e validações Rails. **Quando roda:** sempre que usas o model na consola ou nos controllers (`**save`**, queries, etc.).
-- `**has_secure_password**` — **O que faz:** activa bcrypt e atributos virtuais de senha que preenchem `**password_digest`**. **Por que existe:** nunca guardar password em texto claro. **Quando roda:** em `**save`** com nova password e em `**authenticate**` no login.
-- `**before_validation :normalize_email**` — **O que faz:** regista um callback antes da fase `**valid?`**. **Por que existe:** validações e unicidade verem o email já **trim** + minúsculas. **Quando roda:** antes de `**validates …`** em cada `**save**` / `**valid?**`.
-- `**validates :email, presence: true, format: …, uniqueness: { case_insensitive: true }**` — **O que faz:** exige valor, formato tipo email e email único (ignora casing). **Por que existe:** identidade estável por conta; evita dois emails “iguais” só mudando maiúsculas. **Quando roda:** dentro do ciclo `**validate`** em `**save**`.
-- `**validates :timezone, presence: true**` — **O que faz:** exige timezone não vazio. **Por que existe:** relatórios no produto assumem TZ IANA fixo por utilizador. **Quando roda:** ciclo `**validate`** quando o atributo entra na validação.
-- `**validates :password … if: -> { … }**` — **O que faz:** exige password presente e ≥ 8 caracteres só quando ainda não há hash **ou** o pedido inclui novo `**password`**. **Por que existe:** PATCH de perfil sem password não obriga redefinir hash. **Quando roda:** quando o lambda do `**if`** é verdadeiro no `**validate**`.
-- `**validates :password_confirmation, presence: true, on: :create**` — **O que faz:** na **criação** exige campo `**password_confirmation`**. **Por que existe:** reduz typo na password inicial; updates sem troca de password não ficam obrigados a confirmação. **Quando roda:** só no primeiro `**save`** de registo novo (`**on: :create**`).
-- `**validate :timezone_must_be_known, if: -> { timezone.present? }**` — **O que faz:** chama método de validação custom só quando `**timezone`** já tem valor. **Por que existe:** validar TZ real (IANA); evita dois erros diferentes pelo mesmo problema vazio. **Quando roda:** durante `**validate`** quando `**present?**`.
-- `**private**` — **O que faz:** torna métodos abaixo invisíveis como API pública do model. **Por que existe:** `normalize_email` e `timezone_must_be_known` só existem para o Rails (`before_validation`, `validate`), não para chamar à mão desde fora como “serviços”. **Quando roda:** em tempo de verificação de visibilidade do Ruby sempre que há chamadas directas ilegítimas desde fora da instância.
-- `**def normalize_email` / `self.email = email.to_s.strip.downcase`** — **O que faz:** reescreve `**email`** com string segura, sem espaços laterais e em minúsculas. **Por que existe:** alinhar parâmetro JSON com `**find_by(email:)`** e com unicidade. **Quando roda:** sempre que `**before_validation`** dispara antes de `**save**`.
-- `**TZInfo::Timezone.get(timezone)**` — **O que faz:** falha por excepção se o identificador IANA não for conhecido. **Por que existe:** barreira extra além da string “só estar preenchida”. **Quando roda:** durante `**timezone_must_be_known`** na fase `**validate**`.
-- `**rescue …` / `errors.add(:timezone, …)**` — **O que faz:** apanha TZ inválido e regista erro no ActiveModel (`**422`** no HTTP via controller). **Por que existe:** não deixar a excepção RAW subir até 500 quando o problema é entrada do cliente. **Quando roda:** quando `**Timezone.get`** levanta `**InvalidTimezoneIdentifier**`.
+**`class User < ApplicationRecord`** — Liga a classe Ruby à tabela **`users`** por convenção (nome plural). `ApplicationRecord` herda de `ActiveRecord::Base`: ganhas `save`, `find_by`, validações, etc.
+
+**`has_secure_password`** — Adiciona ao model os atributos virtuais **`password`** e **`password_confirmation`** (não são colunas na BD). No **`save`**, se `password` estiver presente, gera bcrypt e grava em **`password_digest`**. No login, **`user.authenticate("texto")`** compara com esse digest. A senha em claro **nunca** é persistida.
+
+**`before_validation :normalize_email`** — Antes de correr as **`validates`**, o Rails chama **`normalize_email`**. Assim `email` já está **trim** e **minúsculas** quando testas formato e unicidade — evita `Jo@x.com` vs `jo@x.com` como contas diferentes.
+
+**`validates :email, presence: true, format: …, uniqueness: { case_insensitive: true }`** — **`presence`** não aceita vazio/nil. **`format: URI::MailTo::EMAIL_REGEXP`** é uma regex “boa o suficiente” para email. **`uniqueness: { case_insensitive: true }`** garante um email por conta **ignorando** maiúsculas (consulta à BD com `LOWER(email)`).
+
+**`validates :timezone, presence: true`** — Obriga timezone não vazio antes de gravar.
+
+**`validates :password, presence: true, length: { minimum: 8 }, if: -> { password_digest.nil? || password.present? }`** — O **`if`** é um lambda: só valida password quando **ainda não há digest** (conta nova) **ou** quando o pedido traz um novo `password` (alteração futura). Assim um PATCH sem campo password não exige redefinir senha.
+
+**`validates :password_confirmation, presence: true, on: :create`** — **`on: :create`** limita esta regra ao **primeiro** registo: na criação exiges confirmação; em updates normais não ficas preso a enviar `password_confirmation` sempre.
+
+**`validate :timezone_must_be_known, if: -> { timezone.present? }`** — Chama o método **`timezone_must_be_known`** na fase de validação, **só** se `timezone` tiver texto (evita validar TZ quando o erro real é “campo vazio”, já coberto por `presence`).
+
+**`private`** — Os métodos abaixo não são parte da “API” pública do model para outros programadores chamarem; o Rails continua a invocá-los internamente (`before_validation`, `validate`).
+
+**`normalize_email`** — **`self.email =`** altera o atributo na instância corrente. **`email.to_s.strip.downcase`** garante string (`.to_s`), remove espaços à volta (**`.strip`**), minúsculas (**`.downcase`**).
+
+**`timezone_must_be_known`** — **`TZInfo::Timezone.get(timezone)`** levanta excepção se o identificador não for IANA válido. O **`rescue`** apanha isso e **`errors.add(:timezone, …)`** acrescenta mensagem ao objecto de erros do ActiveModel — o controller pode devolver **422** com essa mensagem em vez de **500**.
 
 ---
 
@@ -209,21 +237,27 @@ class JsonWebToken
 end
 ```
 
-**Linha-a-linha (Passo 5)**
+**Entender o ficheiro (Passo 5)**
 
-- `**class JsonWebToken`** — **O que faz:** declarar classe utilitarista só para JWT. **Por que existe:** concentrar encode/decode fora dos controllers. **Quando roda:** ao carregar a app e ao chamar `JsonWebToken.encode/decode`.
-- `**EXP = 24.hours`** — **O que faz:** define tempo de vida padrão do token quando não passes `exp` explícito. **Por que existe:** segurança (token caduca); evita ficar válido indefinidamente neste MVP. **Quando roda:** quando `encode` usa o valor por defeito de `exp:`.
-- `**class << self`** — **O que faz:** seguintes métodos tornam-se **de classe**. **Por que existe:** usar `JsonWebToken.encode(...)` sem instanciar. **Quando roda:** quando a classe é carregada em memória pelo Ruby.
-- `**def encode(user_id:, exp: Time.current + EXP)`** — **O que faz:** recebe sempre `user_id`; `exp` opcional (valor por defeito **agora + EXP**). **Por que existe:** interface previsível nos controllers de signup/login. **Quando roda:** sempre que o servidor emite token após login/signup bem-sucedido.
-- `**payload = { sub: user_id, exp: exp.to_i }`** — **O que faz:** monta dados (claims) gravados no corpo lógico do JWT. **Por que existe:** `sub` diz qual utilizador (`id`); `exp` limita validade em formato inteiro exigido pela norma JWT. **Quando roda:** imediatamente antes de `JWT.encode`.
-- `**JWT.encode(payload, secret, "HS256")`** — **O que faz:** assina com HMAC‑SHA256 usando `secret` e devolve a string do token. **Por que existe:** o cliente não pode alterar o payload sem invalidar a assinatura. **Quando roda:** no fim de cada `encode` válido.
-- `**def decode(token)` / `return nil if token.blank?`** — **O que faz:** sair cedo com `nil` quando não há string de token. **Por que existe:** evitar excepção na gema por argumento vazio. **Quando roda:** sempre que `decode` é chamado sem Bearer ou com token vazio.
-- `**JWT.decode(token, secret, true, { algorithm: "HS256" })`** — **O que faz:** verifica assinatura, `exp`, e força algoritmo HS256. **Por que existe:** rejeitar tokens forjados ou com `alg` estranho. **Quando roda:** no ramo normal de `decode` quando o token não está em branco.
-- `**.first.symbolize_keys`** — **O que faz:** extrai só o hash do payload e normaliza chaves para símbolo (`:sub`). **Por que existe:** o restante código usa `payload[:sub]`. **Quando roda:** após decode com sucesso.
-- `**rescue JWT::DecodeError` / `nil`** — **O que faz:** converte falha de decode em `nil` em vez de erro não tratado na stack. **Por que existe:** camada do concern responde `**401`** de forma uniforme. **Quando roda:** quando `JWT.decode` falha (assinatura, formato, expiração, etc.).
-- `**def secret` (privado)** — **O que faz:** devolve o segredo usado em `encode`/`decode`. **Por que existe:** um único sítio para ler credentials/env. **Quando roda:** sempre que `JWT.encode` ou `JWT.decode` precisam da chave nesta classe.
-- `**Rails.application.credentials[:jwt_secret].presence || ENV["JWT_SECRET"]`** — **O que faz:** lê segredo encriptado primeiro; se só houver espaços, tenta variável de ambiente. **Por que existe:** mesmo código em dev/prod/CI sem valor no Git. **Quando roda:** em cada chamada a `secret`.
-- `**raise "Missing …" if key.blank?`** — **O que faz:** interrompe com mensagem explícita quando não há segredo. **Por que existe:** falhar cedo antes de assinar JWT com chave inexistente. **Quando roda:** na primeira `secret` chamada sem configurar nada.
+**Classe e constante `EXP`** — `JsonWebToken` agrupa só lógica estática (sem `initialize`). **`EXP = 24.hours`** usa ActiveSupport: é um objeto `Duration`; em **`encode`** combina-se com **`Time.current + EXP`** para definir **quando** o token deixa de ser válido (claim **`exp`** no JWT).
+
+**`class << self`** — Abre o “eigenclass” da classe: os métodos definidos aí tornam-se **métodos de classe** (`JsonWebToken.encode`), úteis para serviços que não precisam de estado por instância.
+
+**`encode(user_id:, exp: Time.current + EXP)`** — Argumentos **keyword**: obrigas **`user_id:`**; **`exp:`** é opcional e tem valor por defeito “agora + 24h”. **`exp.to_i`** converte para **segundos Unix** (inteiro), formato que a norma JWT espera no claim `exp`.
+
+**`payload = { sub: user_id, exp: exp.to_i }`** — **`sub`** (“subject”) guarda **quem** é o token — aqui o `id` do utilizador. **`exp`** é o instante de expiração. Estes pares vão dentro do payload assinado.
+
+**`JWT.encode(payload, secret, "HS256")`** — Assina o payload com **HMAC-SHA256** usando `secret`. O terceiro argumento fixa o algoritmo no cabeçalho do token. Sem o segredo correcto, ninguém produz uma assinatura que `decode` aceite.
+
+**`decode(token)` — início** — **`token.blank?`** (Rails) cobre `nil`, string vazia e string só com espaços: devolves **`nil`** cedo para não chamar a gema com lixo.
+
+**`JWT.decode(token, secret, true, { algorithm: "HS256" })`** — O terceiro argumento **`true`** é **“verify signature”** — obriga a validar a assinatura e o `exp`. O **hash** final **`{ algorithm: "HS256" }`** força o algoritmo admitido (mitiga ataques em que o atacante tenta outro `alg`). O retorno da gema é um **array**; o **`.first`** é o hash do payload.
+
+**`.symbolize_keys`** — Garante chaves como **`:sub`** e **`:exp`** em Ruby (o decode pode devolver strings como chaves).
+
+**`rescue JWT::DecodeError`** — Qualquer problema de assinatura, formato ou expiração cai aqui; devolves **`nil`** para o `Authenticable` tratar como “sem utilizador”.
+
+**`secret` (privado)** — **`Rails.application.credentials[:jwt_secret]`** lê o YAML das credentials. **`.presence`** devolve `nil` se for `nil` ou string só com espaços. **`|| ENV["JWT_SECRET"]`** tenta a env a seguir. **`raise … if key.blank?`** impede o servidor de emitir tokens com segredo em branco (falha explícita em vez de comportamento silencioso e inseguro).
 
 ---
 
@@ -258,24 +292,31 @@ module Authenticable
 end
 ```
 
-**Linha-a-linha (Passo 6)**
+**Entender o ficheiro (Passo 6)**
 
-- `**module Authenticable`** — **O que faz:** agrupa lógica reutilizável que um controller `**include`**-a como mixin. **Por que existe:** partilhar `current_user` e `authenticate_user!` entre controllers autenticados. **Quando roda:** ao carregar ficheiros e sempre que método do concern é invocado dentro do controller incluido.
-- `**extend ActiveSupport::Concern`** — **O que faz:** activa forma “oficial” Rails de escrever concerns (hooks opcionais `included` etc.). **Por que existe:** convenção Rails e comportamento estável quando módulos crescerem. **Quando roda:** na avaliação do módulo.
-- `**private`** — **O que faz:** torna métodos seguintes apenas helpers internos do controller onde o concern está incluído. **Por que existe:** impedir usar `authenticate_user!`/`current_user` como se fossem URLs públicos. **Quando roda:** em todas as chamadas que respeitem visibilidade Ruby.
-- `**def authenticate_user!`** — **O que faz:** interrompe a action com `**401`** se não há utilizador válido já resolvido. **Por que existe:** usar como `**before_action`** sem repetir código. **Quando roda:** no início de cada action marcada antes do corpo (`**before_action`**).
-- `**return if current_user**` — **O que faz:** sai cedo assim que `**authenticate_user!`** determina que há utilizador (token válido → `**User**` carregado). **Por que existe:** já não há nada em falta para autorizar esta request; responder `**401`** seria erro. **Quando roda:** no início de `**authenticate_user!`**, sempre que `**current_user**` não é `**nil**`.
-- `**render json: { error: "Unauthorized" }, status: :unauthorized**` — **O que faz:** devolve payload JSON `**401`** padrão mínimo. **Por que existe:** mesmo contrato sempre que Bearer falta/token inválido sem expor internals. **Quando roda:** quando `**current_user`** veio `**nil**` após tentativa de resolver.
-- `**@current_user ||= begin … end**` — **O que faz:** calcula `**current_user`** só uma vez por request HTTP e guarda em variável instância. **Por que existe:** JWT decode repetido dentro da mesma request é desperdício. **Quando roda:** na primeira vez que código chama `**current_user`**; chamadas seguintes reutilizam memo.
-- `**request.headers["Authorization"].to_s**` — **O que faz:** lê valor cabeçalho (`Bearer …`) garantindo sempre string mesmo se header ausente. **Por que existe:** evitar `nil` onde esperas método string. **Quando roda:** dentro do bloco de memoização sempre que há tentativa nova de `**current_user`**.
-- `**header.split.last**` — **O que faz:** separa texto header por espaços e fica só último fragmento esperado sendo string JWT quando formato é `**Bearer TOKEN`**. **Por que existe:** parser mínimo sem regex para MVP que funciona bem com Bearer padrão. **Quando roda:** após ler header sempre que há parse token.
-- `**JsonWebToken.decode(token)`** — **O que faz:** valida/descompacta usando service central (retorna `**nil`** se ruim). **Por que existe:** lógica assinatura fica só no service. **Quando roda:** depois extrair substring token sempre que há pedido Bearer.
-- `**return nil unless payload && payload[:sub]`** — **O que faz:** aborta quando decode falhou não devolve dados mínimos (subject id). **Por que existe:** resto só corre com seguro `:sub`. **Quando roda:** imediatamente após `**decode`** se payload inválido.
-- `**User.find_by(id: payload[:sub])**` — **O que faz:** carrega modelo `**User`** cujo `**id**` bate `**sub**` do token. **Por que existe:** transformar JWT em objecto utilizador trabalhável dentro actions. **Quando roda:** após saber `:sub`; devolve `**nil`** se conta apagada.
+**`module Authenticable`** — Agrupa métodos que vão ser **misturados** num controller com `include Authenticable`. O ficheiro vive em `app/controllers/concerns/` por convenção Rails.
+
+**`extend ActiveSupport::Concern`** — Padrão oficial de “concern”: permite no futuro usar blocos como `included do … end` para configurar o host quando o módulo for incluído, sem hacks frágeis.
+
+**`private`** — `authenticate_user!` e `current_user` não são **actions**; ficam como helpers. O **`before_action`** do Rails chama-os na mesma instância do controller — a visibilidade `private` não bloqueia isso.
+
+**`authenticate_user!`** — Nome com **`!`** por convenção (“pode falhar de forma visível”). Primeiro chama **`current_user`**: se devolver um `User`, o **`return`** sai — a action continua. Se for **`nil`**, **`render json: … status: :unauthorized`** envia **401** com corpo JSON. (Nota: em actions mais longas, após `render` convém **`and return`** para garantir que nada abaixo corre; neste MVP as actions são curtas.)
+
+**`@current_user ||= begin … end`** — **`||=`** significa: “se `@current_user` for ainda `nil` ou `false`, executa o bloco e guarda o resultado; senão reutiliza o valor”. Na **primeira** chamada a `current_user` no request, corres decode + `find_by`; nas seguintes (na mesma request) **não** repetis o trabalho.
+
+**`request.headers["Authorization"].to_s`** — **`request`** é o pedido HTTP actual. **`headers["Authorization"]`** devolve o valor do cabeçalho ou `nil`. **`.to_s`** converte `nil` em `""` para poderes sempre chamar métodos de string em seguida.
+
+**`header.split.last`** — Para `"Bearer eyJ…"`, **`split`** parte por espaços em `["Bearer", "eyJ…"]`; **`.last`** fica o token. Se o cabeçalho estiver mal formatado, o valor pode não ser um JWT válido — o **`decode`** trata e devolve `nil`.
+
+**`JsonWebToken.decode(token)`** — Centraliza validação; **`nil`** = “não autenticável”.
+
+**`return nil unless payload && payload[:sub]`** — Sem payload ou sem **`:sub`**, não há id de utilizador fiável — devolves **`nil`**.
+
+**`User.find_by(id: payload[:sub])`** — Carrega o `User` com esse **primary key**. Se o token for velho mas a conta foi apagada, **`find_by`** devolve **`nil`** — comporta-se como sessão inválida.
 
 ---
 
-## Passo 7 — `Api::V1::BaseController ----->`
+## Passo 7 — `Api::V1::BaseController`
 
 **Porquê este passo** — **Para quê:** rotas autenticadas partilham o mesmo comportamento (saber **quem** é `current_user`, poder bloquear com 401). Um `BaseController` sob `Api::V1` é o sítio único para `**include Authenticable`** para os controllers que **herdam** dele. **Porque separado de `ApplicationController`:** signup/login ficam sem token e herdam só de `ApplicationController`; `/me` herda de `BaseController` para obrigar JWT. **Depois:** defines rotas (Passo 9) que apontam para controllers que já seguem esta hierarquia.
 
@@ -293,11 +334,15 @@ end
 
 O `[ApplicationController](../../../../app/controllers/application_controller.rb)` já pode ficar só com `class ApplicationController < ActionController::API` — não precisas do concern aqui.
 
-**Linha-a-linha (Passo 7)**
+**Entender o ficheiro (Passo 7)**
 
-- `**module Api` / `module V1`** — **O que faz:** aninha nomes Ruby para ficar `**Api::V1::BaseController`** alinhados com estrutura de pastas. **Por que existe:** mesma hierarquia que `**namespace`** nas rotas evita mismatch constante vs URL. **Quando roda:** carregamento ficheiros; resolução de constantes sempre que há referências.
-- `**class BaseController < ApplicationController`** — **O que faz:** define classe base API que herdas config global app (filtros, serializers se houver futuro). **Por que existe:** partilhar include concern sem poluir signup/login herdando ApplicationController só. **Quando roda:** arranque; cada request autenticada que passe por descendant.
-- `**include Authenticable`** — **O que faz:** mistura métodos `current_user` + `authenticate_user!` dentro deste controller e filhos. **Por que existe:** um único `include` onde precisamos JWT sempre. **Quando roda:** avaliação métodos sempre que descendant chama métodos mixin.
+**`module Api` / `module V1` (aninhados)** — Em Ruby, `module Api; module V1; class BaseController` define a constante **`Api::V1::BaseController`**. O caminho do ficheiro **`app/controllers/api/v1/base_controller.rb`** tem de corresponder a esse nome (Zeitwerk / autoload). As rotas **`namespace :api`** e **`namespace :v1`** geram URLs com prefixo **`/api/v1`** e resolvem controllers sob esse namespace.
+
+**`class BaseController < ApplicationController`** — Herda tudo o que definires no `ApplicationController` global (por exemplo `ActionController::API`). É o “pai” só da **árvore API v1**, não de signup/login se esses herdarem directamente de `ApplicationController`.
+
+**`include Authenticable`** — Copia os métodos do módulo para esta classe e para **subclasses**. Assim `MeController < BaseController` herda automaticamente `current_user` e `authenticate_user!` sem repetir ficheiros.
+
+**Porque não `include Authenticable` no `ApplicationController`** — `RegistrationsController` e `SessionsController` herdam de `ApplicationController` e **não** devem exigir JWT. Só controllers “atrás do login” herdam de **`BaseController`** e ganham o concern.
 
 ---
 
@@ -397,37 +442,36 @@ module Api
 end
 ```
 
-**Linha-a-linha (Passo 8)**
+**Entender os ficheiros (Passo 8)**
 
-*Nos três ficheiros, `module Api` / `module V1` repetem-se pelo mesmo motivo do Passo 7: estrutura em `app/controllers/api/v1/` e nomes de classe alinhados com as rotas.*
+**Namespaces `Api::V1`** — Igual ao Passo 7: cada ficheiro sob `app/controllers/api/v1/` declara `module Api` / `module V1` para o nome da classe bater com o router.
 
-#### RegistrationsController
+**RegistrationsController**
 
-- `**class RegistrationsController < ApplicationController`** — **O que faz:** o signup **não** herda `Authenticable` (logo, sem exigir Bearer). **Por que existe:** registar a primeira conta antes de existir token JWT. **Quando roda:** em cada `**POST /api/v1/signup`**.
-- `**def create**` — **O que faz:** trata o corpo JSON e cria a conta respondendo com JSON. **Por que existe:** a rota `**signup`** precisa duma **action** com este nome. **Quando roda:** em cada `**POST /api/v1/signup`** válido.
-- `**user = User.new(user_params)**` — **O que faz:** cria um `User` só em memória, só com campos `**permit`** em `**user_params**`. **Por que existe:** impedir que o pedido HTTP escreva atributos que não queres aceitar (**mass assignment**). **Quando roda:** logo após validar/forjar `**user_params`** no `**create**` (signup).
-- `**if user.save**` — **O que faz:** corre validações do model, faz hash da password e grava na BD se tudo passar. **Por que existe:** separar resposta `**201`** (sucesso) de `**422**` (validação). **Quando roda:** logo após `**User.new`** com parâmetros válidos.
-- `**render json: { … }, status: :created**` — **O que faz:** devolve `**201`** com `**token**` JWT e `**user**` (sem expor password). **Por que existe:** o cliente (Insomnia ou front) pode logo chamar `**GET /me`**. **Quando roda:** quando `**save`** devolveu `**true**`.
-- `**render json: { errors: … }, status: :unprocessable_entity**` — **O que faz:** devolve `**422`** com `**user.errors.full_messages**`. **Por que existe:** mesmo contrato sempre que o modelo rejeita dados. **Quando roda:** quando `**save`** é `**false**`.
-- `**user_params**` — **O que faz:** obriga `**params[:user]`** e só deixa passar email, passwords, timezone e display name. **Por que existe:** limitar o que o HTTP pode escrever no model. **Quando roda:** ao construir `**User.new(user_params)`**.
-- `**user_json**` — **O que faz:** monta o hash JSON “perfil público” e remove chaves com valor `**nil`** (`**compact**`). **Por que existe:** manter o mesmo formato de `**user`** nas respostas de signup, login e `**/me**`. **Quando roda:** antes de cada `**render`** de sucesso com `**user**` no JSON.
+- **`class … < ApplicationController`** — Signup **sem** Bearer; o cliente ainda não tem token.
+- **`def create`** — Action invocada por **`POST /api/v1/signup`**. O corpo HTTP JSON vira **`params`** no Rails.
+- **`User.new(user_params)`** — Constrói um registo **em memória**; ainda não há `INSERT` na BD. Só os atributos que **`user_params`** permitir entram no objecto (protecção contra *mass assignment*).
+- **`user.save`** — Valida, hasheia password se aplicável, e faz **`INSERT`** se válido; devolve **`true`**/`false`.
+- **`render json: … status: :created`** — **`status: :created`** é HTTP **201** “recurso criado”. O JSON inclui **`token`** (novo JWT com `sub: user.id`) e **`user`** (perfil sem secrets).
+- **`render json: … status: :unprocessable_entity`** — HTTP **422**: pedido bem formado mas regras de negócio falharam (validações). **`user.errors.full_messages`** é um array de strings legível para o cliente.
+- **`user_params`** — **`require(:user)`** faz **`400`-style** se faltar a chave `user` no JSON (Strong Parameters). **`permit(...)`** lista **whitelist** de colunas que o cliente pode escrever.
+- **`user_json(user)`** — Monta hash Ruby que o `render json:` converte em JSON. **`.compact`** remove pares com valor **`nil`** (ex.: `display_name` ausente).
 
-#### SessionsController
+**SessionsController**
 
-- `**class SessionsController < ApplicationController**` — **O que faz:** o login é **público** (sem concern `Authenticable`). **Por que existe:** o Bearer só é criado **nesta** action após validar email + password. **Quando roda:** cada `**POST /api/v1/login`**.
-- `**find_by(email: … strip.downcase)**` — **O que faz:** procura o utilizador com o email normalizado (como no model, antes das validações). **Por que existe:** o email na BD está em minúsculas; o pedido pode trazer maiúsculas. **Quando roda:** no início de `**create`** (login).
-- `**user&.authenticate(…)**` — **O que faz:** compara a password com `**password_digest`** (bcrypt); o `**?.**` evita erro se `**user**` for `**nil**`. **Por que existe:** mesma resposta genérica se o email não existir ou a password estiver errada. **Quando roda:** logo após `**find_by`** no login.
-- `**render … status: :ok**` — **O que faz:** devolve `**200`** com `**token**` e `**user**` no mesmo formato que o signup (`**user_json**`). **Por que existe:** o cliente trata igual “conta já criada” e “voltar a entrar”. **Quando roda:** quando `**authenticate`** devolve verdadeiro.
-- `**render … unauthorized**` — **O que faz:** responde `**401`** com mensagem genérica *Invalid credentials*. **Por que existe:** não dizer apenas por esse texto se o email existe ou só a password falhou (menos pistas para tentativas automatizadas de descobrir contas). **Quando roda:** quando não há utilizador ou a password falha.
-- `**session_params*`* — **O que faz:** `**permit(:email, :password)`** no **nível raiz** dos `params`. **Por que existe:** no login o JSON do plano não traz objeto `**user`** — formato diferente do signup. **Quando roda:** ao início de `**create`** (login).
+- **`find_by(email: …)`** — Procura **uma** linha; devolve `nil` se não existir. O email normaliza-se como no model para bater com o que está na BD.
+- **`user&.authenticate(session_params[:password])`** — **`&.`** safe navigation: se `user` for `nil`, a expressão inteira é **`nil`** (short-circuit) — não chamas `authenticate` em `nil`. Se `user` existir, **`authenticate`** compara com `password_digest`.
+- **`status: :ok`** — HTTP **200**; aqui significa “login ok”, não “criado”.
+- **`status: :unauthorized`** — HTTP **401** “não autenticado”; mensagem genérica para email ou password errados.
+- **`session_params`** — **`params.permit(:email, :password)`** na **raiz** porque o JSON de login **não** tem `"user": { … }`.
 
-#### MeController
+**MeController**
 
-- `**class MeController < BaseController**` — **O que faz:** `**/me`** herda `**BaseController**`, onde já existe `**include Authenticable**`. **Por que existe:** todas as actions de perfil assumem Bearer válido sem repetir código. **Quando roda:** em cada pedido `**GET`** ou `**PATCH**` para `**/me**`.
-- `**before_action :authenticate_user!**` — **O que faz:** corre `**authenticate_user!`** antes de `**show**` e `**update**`. **Por que existe:** sem token válido devolves `**401`** antes de qualquer lógica de perfil. **Quando roda:** início de cada action listada nos pedidos `**/me`**.
-- `**def show**` — **O que faz:** constrói JSON com `**user_json(current_user)`**. **Por que existe:** endpoint `**GET /me`** apenas lê dados do utilizador autenticado. **Quando roda:** `**GET`** com `**Authorization: Bearer**` válido.
-- `**def update` + `current_user.update(me_params)**` — **O que faz:** aplica alterações apenas no que `**me_params`** permitir (timezone e display name neste MVP). **Por que existe:** limitar PATCH sem expor mudança de password por este mesmo endpoint. **Quando roda:** `**PATCH /me`** com JSON `**user**` aninhado e Bearer válido.
-- `**422` com lista de erros** — **O que faz:** se `**update`** falhar validações, devolves o mesmo envelope `**errors**` (e o mesmo código **422**) que no signup. **Por que existe:** cliente trata validações igual em todos os POST/PATCH nesta API. **Quando roda:** quando `**current_user.update(me_params)`** devolve `**false**`.
+- **`class … < BaseController`** — Herda **`include Authenticable`** indirectamente.
+- **`before_action :authenticate_user!`** — Antes de **`show`** e **`update`**, corre o porteiro; se falhar, a action nem chega a correr o teu código útil.
+- **`show`** — Só **`render`** do `current_user` já resolvido pelo token.
+- **`update`** — **`current_user.update(me_params)`** aplica PATCH parcial só nos atributos permitidos; **`if`** escolhe **200** + JSON ou **422** + erros.
+- **`me_params`** — **`require(:user).permit(:timezone, :display_name)`** — o PATCH **tem** de trazer `"user": { … }`; não **permites** `password` aqui no MVP.
 
 ---
 
@@ -458,16 +502,25 @@ Confirma:
 rails routes | grep api
 ```
 
-**Linha-a-linha (Passo 9)**
+**Entender o ficheiro (Passo 9)**
 
-- `**Rails.application.routes.draw do`** — **O que faz:** começa o bloco onde defines todos os URLs e verbos HTTP da app. **Por que existe:** o Rails regista estas regras no arranque; sem isto há só 404 ou rotas defaults. **Quando roda:** ao iniciar Puma até mudares `**routes.rb`**.
-- `**get "up" => "rails/health#show", as: :rails_health_check**` — **O que faz:** expõe `**GET /up**` como health check do framework. **Por que existe:** infraestrutura (load balancer, k8s) pode testar vida da app sem tocar na API de produto nem na BD necessariamente. **Quando roda:** em cada pedido a esse path — não faz parte da auth JWT.
-- `**namespace :api do**` — **O que faz:** faz com que todas as linhas lá dentro esperem `**Api::**` controllers e `**/api/...**` no URL (por defeito). **Por que existe:** separar a API JSON das rotas “web” caso as tenhas mais tarde no mesmo projeto. **Quando roda:** sempre que resolves um URL sob `**/api**` (após migrações de rotas e restart se preciso).
-- `**namespace :v1 do**` — **O que faz:** aninha outro nível (`**/api/v1/...**` e `**Api::V1::**`). **Por que existe:** podes criar `**v2**` com contratos diferentes sem apagar `**v1**` de imediato. **Quando roda:** em cada endpoint que ficou declarado dentro destes `**namespace**`-s.
-- `**post "signup", to: "registrations#create"**` — **O que faz:** `**POST /api/v1/signup**` chama `**create**` na classe `**Api::V1::RegistrationsController**` (Rails infere o nome `**Registrations**` a partir da string `**registrations**`). **Por que existe:** expor registar conta sem Bearer. **Quando roda:** ao testar signup (Passo 11).
-- `**post "login", to: "sessions#create"**` — **O que faz:** `**POST /api/v1/login**` chama `**Api::V1::SessionsController#create**`. **Por que existe:** trocar email+password por token JWT sem session cookie. **Quando roda:** em cada `**POST**` de login válido contra este path.
-- `**get "me", to: "me#show"**` — **O que faz:** `**GET /api/v1/me**` chama `**Api::V1::MeController#show**`. **Por que existe:** ler perfil com Bearer (read-only por este verbo HTTP). **Quando roda:** Passo 11 após cópias do token.
-- `**patch "me", to: "me#update"**` — **O que faz:** `**PATCH /api/v1/me**` chama `**#update**` com corpo JSON parcial. **Por que existe:** atualizar só campos permitidos sem `**`:id`** no path (**“eu”** = quem está no token). **Quando roda:** quando mandas **`PATCH`** com **`Authorization`**.
+**`Rails.application.routes.draw do … end`** — Todo o roteamento da aplicação vive neste bloco. O ficheiro é `config/routes.rb`; é lido quando o servidor (Puma) arranca.
+
+**`get "up" => "rails/health#show", as: :rails_health_check`** — Mapeia **`GET /up`** para o controller interno de saúde do Rails. **`as:`** dá nome à rota para helpers (`rails_health_check_path`); útil para monitorização, não para a API de negócio.
+
+**`namespace :api do`** — Prefixa URLs com **`/api`** e espera classes sob o módulo **`Api::`**. O ficheiro do controller fica em `app/controllers/api/`.
+
+**`namespace :v1 do`** — Dentro de `api`, prefixa com **`/v1`** e módulo **`V1`**. URL final: **`/api/v1/...`**.
+
+**`post "signup", to: "registrations#create"`** — **`post`** = método HTTP POST. A string **`"signup"`** define o segmento de path (junto com namespaces → **`/api/v1/signup`**). **`to:`** diz **`controller#action`**: ficheiro `registrations_controller.rb`, classe `RegistrationsController`, método **`create`**.
+
+**`post "login", to: "sessions#create"`** — Idem para **`/api/v1/login`** → **`SessionsController#create`**.
+
+**`get "me", to: "me#show"`** — **`GET`** é idempotente e só leitura; **`/api/v1/me`** → **`MeController#show`**.
+
+**`patch "me", to: "me#update"`** — **`PATCH`** para actualização parcial do recurso “eu”; mesmo path base **`/me`**, verbo diferente do GET.
+
+**`rails routes | grep api`** — **`rails routes`** lista todas as rotas; **`grep api`** filtra linhas com “api” para veres só o que interessa à API.
 
 ---
 
@@ -481,10 +534,19 @@ rails server
 
 Por defeito: `http://localhost:3000`.
 
-**Linha-a-linha (Passo 10)**
+**Entender o comando (Passo 10)**
 
-- `**rails server`** — **O que faz:** arranca **Puma** e liga-te ao `**config.ru`**, porta **3000** por defeito. **Por que existe:** sem processo HTTP nada das rotas pode ser testado (Insomnia, browser). **Quando roda:** até terminares este comando (**Ctrl+C**); atalho comum `**rails s`**.
-- `**localhost:3000**` (valor por defeito) — **O que faz:** URL base onde o Passo 11 monta paths como `**http://localhost:3000/api/v1/signup`**. **Por que existe:** mesmo host onde o servidor escuta até mudares porta com `**-p`**. **Quando roda:** enquanto o servidor está levantado nessa porta.
+**`rails server`** — Arranca o processo do servidor web (**Puma** por defeito no Rails 7+). Ele carrega a aplicação Rails (ambiente, autoload, rotas) e fica à escuta de pedidos TCP.
+
+**`config.ru`** — Ficheiro Rack na raiz; é o “ponto de entrada” que o Puma usa para delegar pedidos à stack Rails.
+
+**`localhost` e porta `3000`** — Por defeito o servidor **liga-se** a todas as interfaces ou só a localhost conforme versão/config; na prática usas **`http://127.0.0.1:3000`** ou **`http://localhost:3000`**. O Passo 11 monta URLs completas com esse host.
+
+**`rails s`** — Atalho idêntico a **`rails server`**.
+
+**`-p PORTA`** — Opção para outra porta (ex.: **`rails s -p 4000`**) se **3000** estiver ocupada.
+
+**Parar o servidor** — **Ctrl+C** no terminal mata o processo; deixa de haver servidor a ouvir até voltares a correr `rails s`.
 
 ---
 
@@ -540,16 +602,24 @@ Resposta esperada: **200** com `user`.
 
 Mesmo header Bearer.
 
-**Linha-a-linha (Passo 11 — significado dos campos)**
+**Entender os corpos JSON (Passo 11)**
 
-*Estes snippets não são Ruby; são **corpos HTTP JSON** que o `**ActionDispatch`** transforma em `**params**` nos controllers.*
+**O que o Rails faz com o body** — Com **`Content-Type: application/json`**, o middleware parseia o corpo e preenche **`params`** com chaves de texto (e por vezes símbolos consoante o acesso). Os controllers usam **`params.require` / `permit`** para ler com segurança.
 
-- `**"user": { … }` (Signup / PATCH)** — **O que faz:** aninha sob `**user*`* tudo que o `**RegistrationsController#user_params**` e `**MeController#me_params**` esperam ler. **Por que existe:** `**params.require(:user)`** falha ou filtra bem se esta chave existe e tem os campos certos; no Insomnia fica óbvio o que é recurso `**User**` vs metadados. **Quando roda:** quando envias signup ou PATCH com este wrapper.
-- `**email`** — **O que faz:** identificador de conta e entrada de `**find_by`** no login. **Por que existe:** o modelo obriga unicidade/formato antes de `**save`**; normalizado no `**User**`. **Quando roda:** em signup e login.
-- `**password` / `password_confirmation`** — **O que faz:** senha nova + segunda cópia que `has_secure_password` compara só em memória. **Por que existe:** confirma que o cliente não gravou erro de digitação sem guardar dois hashes; `**password_confirmation`** não tem coluna na BD — só validação ActiveModel. **Quando roda:** signup (opcional `**password_confirmation`** na validação forte — no plano envias-os em conjunto).
-- `**timezone**` — **O que faz:** string IANA (ex.: `**Europe/Lisbon`**) que o `**User**` valida com TZInfo. **Por que existe:** relatórios e UI futuras com dias locais coherentes (**Passo 4**). **Quando roda:** signup obrigatório; PATCH opcional segundo `**me_params`**.
-- `**display_name**` — **O que faz:** nome amigável opcional para respostas JSON. **Por que existe:** perfil pode existir só com email; `**.compact`** na resposta esconde chaves `**nil**`. **Quando roda:** signup ou PATCH quando quiseres texto visível ao utilizador.
-- **Corpo do login sem `"user"` na raiz** — **O que faz:** `**email`** e `**password**` vêm ao nível topo do JSON. **Por que existe:** UX mais simples (dois campos); no código forças `**session_params`** com `**permit**` na raiz em vez de reutilizar `**user_params**`. **Quando roda:** `**POST /api/v1/login`** apenas.
+**Header `Content-Type: application/json`** — Diz ao servidor que o corpo é JSON; sem isto o parse pode falhar ou `params` ficar vazio.
+
+**Signup / PATCH — objecto `"user"`** — Agrupa atributos do model. **`params.require(:user)`** no controller **levanta erro** se a chave `"user"` faltar — falhas cedo com pedido mal formado. Cada campo dentro de `user` vira **`params[:user][:email]`**, etc.
+
+- **`email`** — Vai para validação de presença, formato e unicidade no `User`.
+- **`password` / `password_confirmation`** — Não são colunas: o `has_secure_password` usa-os só em memória e grava **`password_digest`**. A confirmação reduz erros de digitação na criação.
+- **`timezone`** — String que o Passo 4 valida como IANA (TZInfo).
+- **`display_name`** — Opcional no model; pode ser omitido ou `null`.
+
+**Header `Authorization: Bearer <token>`** — No **`GET /me`** e **`PATCH /me`**, o **`Authenticable`** lê este cabeçalho. **`Bearer`** é o esquema; a seguir vem o JWT **sem** aspas no valor real.
+
+**Login — raiz com `email` e `password`** — O mesmo **`params`**, mas **sem** aninhar em `user`; por isso **`session_params`** usa **`params.permit(:email, :password)`** directamente. Se aqui usasses `require(:user)`, o login deste plano quebrava.
+
+**Ordem dos pedidos (1→2→3→4)** — Signup cria linha na BD e devolve token; login obtém **outro** token para o mesmo user; GET `/me` prova que o token identifica o `User`; PATCH opcional testa `me_params` e respostas 422 se enviares timezone inválido, etc.
 
 ---
 
@@ -557,7 +627,7 @@ Mesmo header Bearer.
 
 **Porquê este passo** — **Para quê:** além do JSON no Insomnia, vês **na fonte** que o email, timezone e `**password_digest`** (hash bcrypt, nunca texto claro) estão gravados — liga o que aprendeste sobre migrations modelos à realidade PostgreSQL. **Porque no fim:** só faz sentido depois de um signup bem-sucedido. **Depois:** checklist final + documentar rotas em `api-rotas.md` se ainda não o fizeste.
 
-**DBeaver (alternativa recomendada em GUI):** cria uma ligação **PostgreSQL** com os mesmo valores que `**config/database.yml**` para `development` (host, porta, nome da BD, utilizador, password). Abre o SQL Editor na base do projecto e corre o mesmo `SELECT` abaixo; não precisas de **`rails dbconsole`** se preferires explorar esquema e dados no DBeaver.
+**DBeaver (alternativa recomendada em GUI):** cria uma ligação **PostgreSQL** com os **mesmos** valores que `**config/database.yml**` para `development` (host, porta, nome da BD, utilizador, password). Abre o SQL Editor na base do projecto e corre o mesmo `SELECT` abaixo; não precisas de **`rails dbconsole`** se preferires explorar esquema e dados no DBeaver.
 
 ```bash
 rails dbconsole
@@ -577,16 +647,25 @@ LIMIT 5;
 
 Deves ver a tua linha com `email` correcto e `password_digest` preenchido (é o hash bcrypt, **não** a password em claro).
 
-**Linha-a-linha (Passo 12)**
+**Entender a confirmação na BD (Passo 12)**
 
-- `**rails dbconsole`** — **O que faz:** abre cliente **psql** com as mesmas credenciais que `**config/database.yml`**. **Por que existe:** ver linhas brutas sem carregar modelo nem seeds; fecha o ciclo “migrate → modelo → HTTP → BD”. **Quando roda:** comando manual no terminal após signup bem-sucedido (em **DBeaver** corres o mesmo SQL ligado ao mesmo servidor/BD).
+**Porque voltar à BD** — O JSON da API pode mentir por bug teu; a tabela **`users`** é a **fonte de verdade** do que ficou persistido após o signup.
 
-- `**SELECT id, email, timezone, display_name`** — **O que faz:** lê dados de perfil que também aparecem no JSON de `**user`**. **Por que existe:** confirmar valores persistidos igual ao esperado pelo Insomnia (ou pelo DBeaver a mostrar a grelha). **Quando roda:** no **psql** após `**rails dbconsole`** ou no editor SQL do DBeaver.
-- `**password_digest IS NOT NULL AS tem_hash_senha**` — **O que faz:** testa linha por linha se existe hash bcrypt sem imprimir conteúdo sensível inteiro à consola neste exemplo. **Por que existe:** `has_secure_password` devia ter corrido antes de aparecer `**true`**; se for `**false**`, algo estranho gravou conta sem digest. **Quando roda:** na mesma query de confirmação.
-- `**FROM users`** — **O que faz:** aponta para a tabela criada pela migration `**CreateUsers`** (refletida em `**schema.rb**`). **Por que existe:** liga comando SQL físico ao mapa `**User`** ⇄ `**users**`. **Quando roda:** sempre que corrês esta `**SELECT`**.
-- `**ORDER BY id DESC**` — **O que faz:** mostra primeiro os registos com `**id`** mais alto — normalmente últimos testes. **Por que existe:** evitas percorrer tabela inteira só para encontrar conta que acabas de criar. **Quando roda:** no final da cláusula `**SELECT`**.
-- `**LIMIT 5**` — **O que faz:** trunca resultado a cinco linhas máximo. **Por que existe:** em dev há muitos re-testes — não precisas listar todas. **Quando roda:** após `**ORDER BY`**.
-- `**\q**` — **O que faz:** sai do cliente **psql** de volta ao shell. **Por que existe:** comando **meta** do psql — não faz parte SQL ISO. **Quando roda:** quando terminaste de inspecionar.
+**`rails dbconsole`** — Abre o cliente de linha de comando **psql** (PostgreSQL) já com **user**, **host**, **database** e **password** lidos de **`config/database.yml`** para o ambiente actual (normalmente `development`). Não precisas de copiar credenciais à mão.
+
+**DBeaver** — GUI alternativa: crias uma “PostgreSQL connection” com os **mesmos** quatro dados (host, porta, database, user, password). Executas o mesmo SQL num editor de queries.
+
+**`SELECT id, email, timezone, display_name`** — Projecta colunas de perfil que correspondem ao que também mostras no JSON `user` (sem revelar digest completo na listagem se não quiseres).
+
+**`password_digest IS NOT NULL AS tem_hash_senha`** — Expressão booleana por linha: **`true`** se a coluna digest existe e não é `NULL` — confirma que o `save` do Rails correu o fluxo bcrypt. O alias **`tem_hash_senha`** só renomeia a coluna no resultado para leres melhor.
+
+**`FROM users`** — Tabela física mapeada pelo model `User` (`users` plural).
+
+**`ORDER BY id DESC`** — Ordena pelo `id` descendente: os **últimos** registos criados aparecem primeiro (útil em dev com muitos testes).
+
+**`LIMIT 5`** — Corta o resultado a cinco linhas para não despejar a tabela inteira no ecrã.
+
+**`\q`** — Comando **do programa psql** para sair (meta-comando). No DBeaver não usas `\q`; fechas a janela ou desligas a ligação.
 
 ---
 
